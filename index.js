@@ -1,9 +1,9 @@
 const express = require("express");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const jwt = require("jsonwebtoken");
-const cookieParser = require("cookie-parser");
 const cors = require("cors");
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -28,32 +28,6 @@ const client = new MongoClient(uri, {
   },
 });
 
-// middlewares
-
-const logger = async (req, res, next) => {
-  console.log("call>", req.hostname, req.originalUrl);
-  next();
-};
-
-const verifyToken = async (req, res, next) => {
-  const token = req.cookies?.token;
-  console.log("token in the cookies--", token);
-  if (!token) {
-    return res.status(401).send({ message: "not unauthorized" });
-  }
-
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    if (err) {
-      console.log(err);
-      return res.status(401).send({ message: "not unauthorized" });
-    }
-
-    console.log("value in the token", decoded);
-    req.user = decoded;
-    next();
-  });
-};
-
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -62,22 +36,45 @@ async function run() {
     const productCollection = client.db("carDoctor").collection("services");
     const orderCollection = client.db("carDoctor").collection("orders");
 
-    // auth related api
+    // middleware for verify token
+    const verifyToken = (req, res, next) => {
+      const token = req?.cookies?.token;
+      if (!token) {
+        return res.status(401).send({ message: "unauthorize access" });
+      }
+
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "unauthorize access" });
+        }
+        req.user = decoded;
+        next();
+      });
+    };
+
+    // auth token related api start
     app.post("/jwt", async (req, res) => {
       const user = req.body;
-      // console.log(user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "1h",
       });
       res
         .cookie("token", token, {
           httpOnly: true,
-          secure: false,
+          secure: true,
+          sameSite: "none",
         })
         .send({ success: true });
     });
 
-    app.get("/services", logger, async (req, res) => {
+    // clear cookie after logout
+    app.post("/logout", async (req, res) => {
+      res.clearCookie("token", { maxAge: 0 }).send({ success: true });
+    });
+
+    // auth token related api end
+
+    app.get("/services", async (req, res) => {
       const cursor = productCollection.find();
       const result = await cursor.toArray();
       res.send(result);
@@ -100,12 +97,11 @@ async function run() {
     });
 
     app.get("/checkout", verifyToken, async (req, res) => {
-      let query = {};
-      // console.log(req.cookies.token);
-      if(req.query?.email !== req.user.email){
-        return res.status(403).send({ message: "Forbidden" });
-
+      if(req.user.email !== req.query.email){
+        return res.status(403).send({ message: "forbidden access" });
       }
+
+      let query = {};
       if (req.query?.email) {
         query = { email: req.query.email };
       }
