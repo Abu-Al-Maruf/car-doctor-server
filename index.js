@@ -10,7 +10,10 @@ const port = process.env.PORT || 5000;
 // midlleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: [
+      "https://car-doctor-1e71d.web.app",
+      "https://car-doctor-1e71d.firebaseapp.com/",
+    ],
     credentials: true,
   })
 );
@@ -31,7 +34,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const productCollection = client.db("carDoctor").collection("services");
     const orderCollection = client.db("carDoctor").collection("orders");
@@ -97,7 +100,7 @@ async function run() {
     });
 
     app.get("/checkout", verifyToken, async (req, res) => {
-      if(req.user.email !== req.query.email){
+      if (req.user.email !== req.query.email) {
         return res.status(403).send({ message: "forbidden access" });
       }
 
@@ -129,7 +132,7 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
